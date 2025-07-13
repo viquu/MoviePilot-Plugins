@@ -1,3 +1,4 @@
+import chardet
 import re
 from typing import Tuple
 
@@ -85,13 +86,25 @@ class TTG(_ISiteSigninHandler):
             logger.error(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        sign_res.encoding = "utf-8"
-        if self._success_text in sign_res.text:
+        # 关键修改：在访问 .text 之前，先尝试解码
+        try:
+            sign_res.encoding = "utf-8" # 优先尝试UTF-8
+            decoded_text = sign_res.text
+        except UnicodeDecodeError:
+            # 如果UTF-8解码失败，使用chardet检测
+            result = chardet.detect(sign_res.content)
+            encoding = result['encoding']
+            if encoding:
+                decoded_text = sign_res.content.decode(encoding)
+            else:
+                decoded_text = sign_res.text # 实在不行，回退到requests的默认解码
+
+        if self._success_text in decoded_text:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        if self._sign_text in sign_res.text:
+        if self._sign_text in decoded_text:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        logger.error(f"{site} 签到失败，返回内容：{sign_res.text}")
+        logger.error(f"{site} 签到失败，返回内容：{decoded_text}")
         return False, f'签到失败，返回内容：{sign_res.text}'
