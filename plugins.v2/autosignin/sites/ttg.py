@@ -86,18 +86,17 @@ class TTG(_ISiteSigninHandler):
             logger.error(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        # 关键修改：在访问 .text 之前，先尝试解码
-        try:
-            sign_res.encoding = "utf-8" # 优先尝试UTF-8
-            decoded_text = sign_res.text
-        except UnicodeDecodeError:
-            # 如果UTF-8解码失败，使用chardet检测
-            result = chardet.detect(sign_res.content)
-            encoding = result['encoding']
-            if encoding:
-                decoded_text = sign_res.content.decode(encoding)
-            else:
-                decoded_text = sign_res.text # 实在不行，回退到requests的默认解码
+        # 尝试使用不同编码解码并记录日志
+        content = sign_res.content
+        logger.info(f"尝试使用 utf-8 解码: {content.decode('utf-8', 'ignore')}")
+        logger.info(f"尝试使用 gbk 解码: {content.decode('gbk', 'ignore')}")
+        logger.info(f"尝试使用 gb2312 解码: {content.decode('gb2312', 'ignore')}")
+
+        # 使用 chardet 自动检测编码
+        result = chardet.detect(content)
+        encoding = result['encoding']
+        logger.info(f"chardet 检测编码为: {encoding}")
+        decoded_text = content.decode(encoding, 'ignore') if encoding else sign_res.text
 
         if self._success_text in decoded_text:
             logger.info(f"{site} 签到成功")
@@ -107,4 +106,4 @@ class TTG(_ISiteSigninHandler):
             return True, '今日已签到'
 
         logger.error(f"{site} 签到失败，返回内容：{decoded_text}")
-        return False, f'签到失败，返回内容：{sign_res.text}'
+        return False, f'签到失败，返回内容：{decoded_text}'
